@@ -10,10 +10,10 @@ import edu.eci.arsw.model.Point;
 import edu.eci.arsw.persistence.BlueprintNotFoundException;
 import edu.eci.arsw.persistence.BlueprintPersistenceException;
 import edu.eci.arsw.persistence.BlueprintsPersistence;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class InMemoryBlueprintPersistence implements BlueprintsPersistence{
 
-    private final Map<Tuple<String,String>,Blueprint> blueprints=new HashMap<>();
+    private final Map<Tuple<String,String>,Blueprint> blueprints=new ConcurrentHashMap<>();
 
     public InMemoryBlueprintPersistence() {
         
@@ -83,16 +83,56 @@ public class InMemoryBlueprintPersistence implements BlueprintsPersistence{
         Blueprint bp5 = new Blueprint("Carlos", "Diseño Complejo", pts5);
         blueprints.put(new Tuple<>(bp5.getAuthor(), bp5.getName()), bp5);
         
+        // Agregando tres planos adicionales con dos asociados al mismo autor
+        Point[] pts6 = new Point[]{
+            new Point(25, 25),
+            new Point(75, 25),
+            new Point(75, 75),
+            new Point(25, 75),
+            new Point(25, 25),
+            new Point(50, 50)
+        };
+        Blueprint bp6 = new Blueprint("Ana", "Oficina Central", pts6);
+        blueprints.put(new Tuple<>(bp6.getAuthor(), bp6.getName()), bp6);
+        
+        Point[] pts7 = new Point[]{
+            new Point(5, 5),
+            new Point(45, 5),
+            new Point(45, 35),
+            new Point(35, 35),
+            new Point(35, 15),
+            new Point(15, 15),
+            new Point(15, 35),
+            new Point(5, 35),
+            new Point(5, 5)
+        };
+        Blueprint bp7 = new Blueprint("Ana", "Centro Comercial", pts7);
+        blueprints.put(new Tuple<>(bp7.getAuthor(), bp7.getName()), bp7);
+        
+        Point[] pts8 = new Point[]{
+            new Point(120, 120),
+            new Point(180, 120),
+            new Point(180, 160),
+            new Point(160, 160),
+            new Point(160, 140),
+            new Point(140, 140),
+            new Point(140, 160),
+            new Point(120, 160),
+            new Point(120, 120)
+        };
+        Blueprint bp8 = new Blueprint("Pedro", "Hospital Regional", pts8);
+        blueprints.put(new Tuple<>(bp8.getAuthor(), bp8.getName()), bp8);
+        
     }    
     
     @Override
     public void saveBlueprint(Blueprint bp) throws BlueprintPersistenceException {
-        if (blueprints.containsKey(new Tuple<>(bp.getAuthor(),bp.getName()))){
+        Tuple<String, String> key = new Tuple<>(bp.getAuthor(), bp.getName());
+        // Operación atómica: solo inserta si no existe, evita condición de carrera
+        Blueprint existingBlueprint = blueprints.putIfAbsent(key, bp);
+        if (existingBlueprint != null) {
             throw new BlueprintPersistenceException("The given blueprint already exists: "+bp);
         }
-        else{
-            blueprints.put(new Tuple<>(bp.getAuthor(),bp.getName()), bp);
-        }        
     }
 
     @Override
@@ -107,7 +147,9 @@ public class InMemoryBlueprintPersistence implements BlueprintsPersistence{
     @Override
     public Set<Blueprint> getBlueprintsByAuthor(String author) throws BlueprintNotFoundException {
         Set<Blueprint> authorBlueprints = new HashSet<>();
-        for (Blueprint bp : blueprints.values()) {
+        // Crea una copia de los valores para evitar ConcurrentModificationException
+        // durante la iteración en entorno concurrente
+        for (Blueprint bp : new HashSet<>(blueprints.values())) {
             if (bp.getAuthor().equals(author)) {
                 authorBlueprints.add(bp);
             }
@@ -121,6 +163,20 @@ public class InMemoryBlueprintPersistence implements BlueprintsPersistence{
     @Override
     public Set<Blueprint> getAllBlueprints() {
         return new HashSet<>(blueprints.values());
+    }
+    
+    @Override
+    public boolean updateBlueprint(Blueprint bp) throws BlueprintPersistenceException {
+        Tuple<String, String> key = new Tuple<>(bp.getAuthor(), bp.getName());
+        // Intenta actualizar primero (si existe), operación atómica
+        Blueprint previousValue = blueprints.replace(key, bp);
+        if (previousValue != null) {
+            return true; // Blueprint fue actualizado
+        } else {
+            // Si no existía, intenta crear usando putIfAbsent (operación atómica)
+            Blueprint existingValue = blueprints.putIfAbsent(key, bp);
+            return existingValue != null; // false = creado, true = ya existía (muy raro)
+        }
     }
     
 }

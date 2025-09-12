@@ -68,4 +68,14 @@ public class BlueprintsServices {
         return filteredBlueprints;
     }
     
+    /**
+     * 
+     * @param bp blueprint to update or create
+     * @return true if updated, false if created
+     * @throws BlueprintPersistenceException if there is an error during persistence
+     */
+    public boolean updateBlueprint(Blueprint bp) throws BlueprintPersistenceException {
+        return bpp.updateBlueprint(bp);
+    }
+    
 }

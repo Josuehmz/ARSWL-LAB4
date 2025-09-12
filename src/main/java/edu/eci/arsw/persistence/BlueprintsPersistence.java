@@ -45,4 +45,12 @@ public interface BlueprintsPersistence {
      */
     public Set<Blueprint> getAllBlueprints();
     
+    /**
+     * 
+     * @param bp the blueprint to update or create
+     * @return true if updated, false if created
+     * @throws BlueprintPersistenceException if any low-level persistence error occurs.
+     */
+    public boolean updateBlueprint(Blueprint bp) throws BlueprintPersistenceException;
+    
 }
